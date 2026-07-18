@@ -1,0 +1,10 @@
+bin/
+.agentguard/
+.agentguard-demo/
+*.db
+.DS_Store
+web/node_modules/
+policies/learned/*.yaml
+!policies/learned/.gitkeep
+
+web/dist/

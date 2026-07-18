@@ -1,0 +1,52 @@
+# Example AgentGuard configuration (foundation phase)
+
+data_dir: .agentguard
+policy_dir: policies
+
+api:
+  listen: 127.0.0.1:8787
+
+profiles:
+  - name: local-dev
+    environment: staging
+  - name: prod-oncall
+    environment: production
+
+credentials:
+  aws_profiles:
+    - profile: prod-oncall
+      environment: production
+      scope_labels:
+        - iam:write
+        - rds:admin
+        - s3:full
+        - secrets:read
+    - profile: local-dev
+      environment: staging
+      scope_labels:
+        - rds:read
+        - s3:read
+  postgres:
+    - conn_ref: production-db
+      host_pattern: "*.prod.example.com"
+      environment: production
+      scope_labels:
+        - db:write
+        - db:drop
+    - conn_ref: staging-db
+      host_pattern: "*.staging.example.com"
+      environment: staging
+      scope_labels:
+        - db:read
+        - db:write
+  http_tokens:
+    - ref: github-api
+      header_pattern: "bearer ghp_"
+      scope_labels:
+        - github:repo
+        - github:write
+    - ref: openai-api
+      header_pattern: "bearer sk-"
+      scope_labels:
+        - llm:completion
+        - llm:large-egress

@@ -1,0 +1,98 @@
+# AgentGuard default destructive-action pack.
+# Covers high-risk action classes across postgres, aws, filesystem, shell, and http.
+
+rules:
+  - id: production-database-destructive-actions
+    match:
+      environment: production
+      action_types: [postgres]
+      actions: [drop, truncate, bulk_delete]
+    require:
+      human_approval: true
+      approvers: 2
+      backup_verified: true
+
+  - id: staging-database-destructive-actions
+    match:
+      environment: staging
+      action_types: [postgres]
+      actions: [drop, truncate, bulk_delete]
+    require:
+      human_approval: true
+      approvers: 1
+
+  - id: backup-protection
+    match:
+      resources: ["*backup*", "*snapshot*"]
+    deny:
+      agent_initiated_deletion: true
+
+  - id: backup-delete-aws
+    match:
+      action_types: [aws]
+      actions: [backup_delete, snapshot_delete, rds_delete_snapshot]
+    deny:
+      agent_initiated_deletion: true
+
+  - id: unusual-blast-radius
+    match:
+      affected_records_gt: 1000
+    action: pause_and_escalate
+
+  - id: iam-privilege-changes
+    match:
+      action_types: [aws]
+      actions:
+        - iam_create_user
+        - iam_delete_user
+        - iam_attach_policy
+        - iam_detach_policy
+        - iam_delete_role
+        - iam_create_role
+        - iam_put_role_policy
+    require:
+      human_approval: true
+      approvers: 2
+
+  - id: secret-exposure
+    match:
+      action_types: [aws, http]
+      actions: [secrets_get, credential_export, secret_rotation, secrets_manager_get]
+    action: block
+
+  - id: logging-disable
+    match:
+      action_types: [aws]
+      actions: [cloudtrail_stop, disable_logging, cloudwatch_delete_alarms]
+    action: block
+
+  - id: billing-changes
+    match:
+      action_types: [aws]
+      actions: [billing_modify, budget_delete, budget_modify, ce_create_anomaly_monitor]
+    require:
+      human_approval: true
+      approvers: 2
+
+  - id: mass-file-delete
+    match:
+      action_types: [filesystem, shell]
+      actions: [rm_recursive, mass_delete, rm_rf]
+    require:
+      human_approval: true
+      approvers: 1
+
+  - id: large-egress
+    match:
+      action_types: [http]
+      egress_bytes_gt: 10485760
+    action: pause_and_escalate
+
+  - id: rds-destructive
+    match:
+      action_types: [aws]
+      actions: [rds_delete_db_instance, rds_delete_db_cluster]
+    require:
+      human_approval: true
+      approvers: 2
+      backup_verified: true
