@@ -6,9 +6,9 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
-    "build:pages": "tsc --noEmit && VITE_BASE_PATH=/agentguard/ VITE_STATIC=true vite build",
+    "build:pages": "tsc --noEmit && VITE_BASE_PATH=/AgentGuard/ VITE_STATIC=true vite build",
     "preview": "vite preview",
-    "preview:pages": "VITE_BASE_PATH=/agentguard/ VITE_STATIC=true vite preview --base /agentguard/"
+    "preview:pages": "VITE_BASE_PATH=/AgentGuard/ VITE_STATIC=true vite preview --base /AgentGuard/"
   },
   "dependencies": {
     "react": "^19.0.0",

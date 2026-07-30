@@ -6,7 +6,7 @@ AgentGuard is an enforcement and evidence layer between agents and the systems t
 
 > Turn every human intervention into a permanent organizational control.
 
-**Live site:** [https://amulyavarshney.github.io/agentguard](https://amulyavarshney.github.io/agentguard) — landing, production guide, interactive policy playground, and console tour (static demo data).
+**Live site:** [https://amulyavarshney.github.io/AgentGuard](https://amulyavarshney.github.io/AgentGuard) — landing, production guide, interactive policy playground, and console tour (static demo data).
 
 ```text
 Agent
@@ -94,7 +94,7 @@ AgentGuard is **not** a cloud SaaS that wraps every agent automatically. Product
 └──────────────────────────────────────────────┘
 ```
 
-Details: [Production guide on the live site](https://amulyavarshney.github.io/agentguard/production) or run the UI locally and open `/production`.
+Details: [Production guide on the live site](https://amulyavarshney.github.io/AgentGuard/production) or run the UI locally and open `/production`.
 
 **CI tip:** `AGENTGUARD_AUTO_DENY=1` fails closed when an approval would be required.
 
@@ -137,7 +137,7 @@ npm run dev          # http://localhost:5173  (proxies API to :8787)
 
 ```bash
 cd web
-npm run build:pages   # base=/agentguard/, VITE_STATIC=true
+npm run build:pages   # base=/AgentGuard/, VITE_STATIC=true
 npm run preview:pages
 ```
 

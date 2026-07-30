@@ -28,10 +28,17 @@ jobs:
 
       - name: Install and build static site
         working-directory: web
+        env:
+          # Must match GitHub Pages path exactly (repo name is case-sensitive).
+          VITE_BASE_PATH: /${{ github.event.repository.name }}/
+          VITE_STATIC: 'true'
         run: |
           npm ci
-          npm run build:pages
+          npx tsc --noEmit
+          npx vite build
           cp dist/index.html dist/404.html
+          # Sanity: asset URLs must use the repo-cased base path
+          grep -q "src=\"/${{ github.event.repository.name }}/assets/" dist/index.html
 
       - uses: actions/upload-pages-artifact@v3
         with:
