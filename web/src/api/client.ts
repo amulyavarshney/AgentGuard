@@ -7,8 +7,18 @@ import type {
   RiskSummary,
   Session,
 } from '../types'
+import {
+  demoApprovals,
+  demoCredentials,
+  demoEvents,
+  demoPolicies,
+  demoPolicyRules,
+  demoRisk,
+  demoSession,
+} from './fixtures'
 
 const BASE = '/api/v1'
+const isStatic = import.meta.env.VITE_STATIC === 'true'
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
@@ -17,12 +27,12 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   })
   if (!res.ok) {
     const body = await res.json().catch(() => ({}))
-    throw new Error(body.error ?? `HTTP ${res.status}`)
+    throw new Error((body as { error?: string }).error ?? `HTTP ${res.status}`)
   }
   return res.json() as Promise<T>
 }
 
-export const api = {
+const live = {
   health: () => fetch('/health').then((r) => r.json()),
 
   sessions: () => request<Session[]>('/sessions'),
@@ -63,3 +73,28 @@ export const api = {
   riskSummary: () => request<RiskSummary>('/risk/summary'),
   credentialScopes: () => request<CredentialScopeEntry[]>('/credentials/scopes'),
 }
+
+const mock = {
+  health: async () => ({ status: 'ok', mode: 'static' }),
+  sessions: async () => [demoSession],
+  session: async (id: string) => (id === demoSession.id ? demoSession : demoSession),
+  sessionEvents: async () => demoEvents,
+  events: async () => demoEvents,
+  approvals: async () => demoApprovals,
+  approve: async () => {
+    throw new Error('Approvals require a local agentguard serve process')
+  },
+  deny: async () => {
+    throw new Error('Approvals require a local agentguard serve process')
+  },
+  saveAsRule: async () => {
+    throw new Error('Save-as-rule requires a local agentguard serve process')
+  },
+  policies: async () => demoPolicies,
+  policyRules: async () => demoPolicyRules,
+  setPolicyEnabled: async (id: string, enabled: boolean) => ({ id, enabled }),
+  riskSummary: async () => demoRisk,
+  credentialScopes: async () => demoCredentials,
+}
+
+export const api = isStatic ? mock : live

@@ -1,12 +1,14 @@
 {
-  "name": "agentguard-console",
+  "name": "agentguard-web",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.2.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
-    "preview": "vite preview"
+    "build:pages": "tsc --noEmit && VITE_BASE_PATH=/agentguard/ VITE_STATIC=true vite build",
+    "preview": "vite preview",
+    "preview:pages": "VITE_BASE_PATH=/agentguard/ VITE_STATIC=true vite preview --base /agentguard/"
   },
   "dependencies": {
     "react": "^19.0.0",

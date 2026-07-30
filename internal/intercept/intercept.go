@@ -14,11 +14,3 @@ type WrapOptions struct {
 	Command     []string
 	SessionID   string
 }
-
-// StubInterceptor is a no-op placeholder kept for tests.
-type StubInterceptor struct{}
-
-// Wrap reports that interception is not yet implemented.
-func (StubInterceptor) Wrap(_ context.Context, _ WrapOptions) error {
-	return ErrNotImplemented
-}

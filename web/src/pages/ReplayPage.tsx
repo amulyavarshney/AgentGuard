@@ -14,7 +14,15 @@ export function ReplayPage() {
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    api.sessions().then(setSessions).catch(() => {})
+    api
+      .sessions()
+      .then((list) => {
+        setSessions(list)
+        if (!params.get('session') && list.length > 0 && import.meta.env.VITE_STATIC === 'true') {
+          setParams({ session: list[0].id })
+        }
+      })
+      .catch(() => {})
   }, [])
 
   useEffect(() => {

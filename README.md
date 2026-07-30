@@ -6,22 +6,14 @@ AgentGuard is an enforcement and evidence layer between agents and the systems t
 
 > Turn every human intervention into a permanent organizational control.
 
+**Live site:** [https://amulyavarshney.github.io/agentguard](https://amulyavarshney.github.io/agentguard) — landing, production guide, interactive policy playground, and console tour (static demo data).
+
 ```text
 Agent
   → Policy + permission gateway (AgentGuard)
   → Terminal / FS / HTTP / PostgreSQL / AWS
   → Tamper-resistant audit record
 ```
-
-## Status
-
-Verified locally:
-
-| Check | Result |
-|-------|--------|
-| `go test ./...` | Pass |
-| `go build ./cmd/agentguard` | Pass |
-| `./scripts/demo.sh` (block → replay → save-as-rule → re-block) | Pass |
 
 ## What it can do
 
@@ -34,28 +26,9 @@ Verified locally:
 | **Human approval interlocks** | Pause high-risk actions for CLI/console approve or deny |
 | **Learn from interventions** | “I blocked this — save as permanent rule” scoped to agent, repo, team, or org |
 | **Immutable session replay** | Hash-chained audit timeline: instruction → decision → tool call → result |
-| **Local control plane** | API + React console for sessions, blocked actions, approvals, policies, credentials, risk |
+| **Local control plane + web UI** | Vite/React site: playground, production guide, and ops console |
 
-### Protected action surfaces
-
-| Surface | How it is gated |
-|---------|-----------------|
-| Shell / filesystem | PATH shims (`bash`, `sh`, `rm`, `mv`, `chmod`) |
-| HTTP / APIs | Local forward proxy via `HTTP_PROXY` / `HTTPS_PROXY` |
-| PostgreSQL | `psql` shim + SQL classification (drop, truncate, bulk delete) |
-| AWS | `aws` CLI shim (RDS destroy, IAM, secrets, CloudTrail, snapshots, …) |
-
-### Default policy pack (examples)
-
-Shipped in [`policies/default/destructive-pack.yaml`](policies/default/destructive-pack.yaml):
-
-- Production / staging database destructive ops (approval required)
-- Backup and snapshot deletion (deny)
-- Unusual blast radius (`affected_records > 1000` → escalate)
-- IAM privilege changes, secret exposure/rotation
-- Disable logging, billing changes, mass file delete, large HTTP egress
-
-## Architecture
+### Architecture
 
 ```mermaid
 flowchart TB
@@ -82,7 +55,7 @@ flowchart TB
 
   subgraph console [Control plane]
     API[Local HTTP API]
-    UI[React console]
+    UI[Vite React UI]
   end
 
   Agent --> Exec
@@ -99,197 +72,129 @@ flowchart TB
   UI --> API
 ```
 
-### Decision path for one action
+## Production usage
 
-```mermaid
-flowchart LR
-  A[Proposed action] --> B[Normalize ActionProposal]
-  B --> C{Policy match?}
-  C -->|deny / require approval| D[Decision]
-  C -->|no hard deny| E{Intent aligned with task?}
-  E -->|mismatch| D
-  E -->|aligned| F[allow]
-  D --> G{allow / block / require_approval / pause}
-  G -->|allow| H[Execute real tool]
-  G -->|block| I[Deny + audit]
-  G -->|approval| J[Human approve or deny]
-  J -->|approve| H
-  J -->|deny| I
-  H --> K[Audit result]
-  I --> K
-  J --> L[Optional: save as learned rule]
+AgentGuard is **not** a cloud SaaS that wraps every agent automatically. Production means:
+
+1. Run a **control plane** (`agentguard serve`) on an internal host with shared `data_dir` + `policies/`.
+2. Require every agent/CI job to start via **`agentguard exec`** (or `run`) so shims and the proxy are injected.
+3. Map credentials in `agentguard.yaml`, grow `policies/learned/` from real blocks, and put the console behind VPN/SSO.
+
+```text
+┌──────────────────────────────────────────────┐
+│  Control plane (always on)                   │
+│  agentguard serve                            │
+│  • API + UI (internal)                       │
+│  • SQLite audit + policies on shared volume  │
+└──────────────────────────────────────────────┘
+                 ▲ writes audit
+┌──────────────────────────────────────────────┐
+│  Agent hosts (CI, laptops, runners)          │
+│  agentguard exec --task "…" -- <agent>       │
+└──────────────────────────────────────────────┘
 ```
 
-### Intervention → permanent rule (the wedge)
+Details: [Production guide on the live site](https://amulyavarshney.github.io/agentguard/production) or run the UI locally and open `/production`.
 
-```mermaid
-sequenceDiagram
-  participant User
-  participant Agent
-  participant AG as AgentGuard
-  participant Audit
-  participant Policies
+**CI tip:** `AGENTGUARD_AUTO_DENY=1` fails closed when an approval would be required.
 
-  User->>Agent: Fix auth error in staging
-  Agent->>AG: aws rds delete-db-instance prod-db
-  AG->>AG: Intent mismatch + policy evaluate
-  AG-->>Agent: BLOCKED before aws runs
-  AG->>Audit: Append hash-chained event
-  User->>AG: Save as org-wide rule
-  AG->>Policies: Write policies/learned/*.yaml
-  Note over Policies: Future identical action class blocked for all sessions
-```
-
-## Quickstart
+## Quickstart (local binary)
 
 ```bash
-# Build
+# Build Go binary
 go build -o bin/agentguard ./cmd/agentguard
 
-# Terminal 1 — control plane (API + web console)
+# Optional: build UI into web/dist (served by agentguard serve)
+cd web && npm install && npm run build && cd ..
+
+# Terminal 1 — control plane
 ./bin/agentguard serve
+# → http://127.0.0.1:8787/
 
 # Terminal 2 — wrap an agent command
 ./bin/agentguard exec --task "fix auth error in staging" -- \
   bash -c 'aws rds delete-db-instance --db-instance-identifier prod-db'
 ```
 
-The destructive AWS command is classified and **blocked at the shim** before the real `aws` binary runs — no cloud credentials required for the demo.
+The destructive AWS command is **blocked at the shim** before the real `aws` binary runs.
 
-Open **http://127.0.0.1:8787/** for the console (approvals, blocked actions, session replay, policies, credentials, risk).
+### Web UI locally
 
-## Category demo (non-interactive)
+```bash
+cd web
+npm install
+npm run dev          # http://localhost:5173  (proxies API to :8787)
+```
+
+| Route | Purpose |
+|-------|---------|
+| `/` | Landing |
+| `/playground` | Interactive client-side policy simulator |
+| `/production` | Production topology & hardening guide |
+| `/console/*` | Ops console (live API when `serve` is running) |
+
+### Static GitHub Pages build
+
+```bash
+cd web
+npm run build:pages   # base=/agentguard/, VITE_STATIC=true
+npm run preview:pages
+```
+
+Pages deploy is automated via [`.github/workflows/pages.yml`](.github/workflows/pages.yml) on push to `main` (this repo only — not `amulyavarshney.github.io`).
+
+## Category demo
 
 ```bash
 chmod +x scripts/demo.sh
 ./scripts/demo.sh
 ```
 
-This proves the full wedge:
-
-1. Starts `agentguard serve` on port **8797** (isolated data under `.agentguard-demo/`)
-2. Runs `exec` with a staging fix task and a prod RDS delete — **blocked**
-3. Prints the hash-chained session timeline and verifies integrity
-4. **Save as rule** via `POST /api/v1/events/{id}/save-as-rule`
-5. Confirms future identical action class is blocked by policy
-6. Prints console URLs for replay
-
-| Variable | Default | Purpose |
-|----------|---------|---------|
-| `AGENTGUARD_DEMO_PORT` | `8797` | API/console port |
-| `AGENTGUARD_DEMO_DATA` | `.agentguard-demo` | Isolated SQLite + config |
-| `AGENTGUARD_BIN` | `bin/agentguard` | Binary path |
-| `AGENTGUARD_AUTO_DENY` | unset | Auto-deny approval prompts (safe for CI) |
-| `AGENTGUARD_AUTO_APPROVE` | unset | Auto-approve (use with care) |
+Proves: block → hash-chain replay → save-as-rule → re-block.
 
 ## CLI reference
 
 ```bash
-agentguard serve                              # API + console
-agentguard exec --task "..." -- <cmd>          # wrap process (shims + proxy)
-agentguard run <preset> --task "..."           # presets: bash, sh, zsh, claude
-agentguard session list                        # sessions from audit log
-agentguard session replay <session-id>         # timeline JSON
-agentguard session verify <session-id>         # hash-chain integrity
+agentguard serve                              # API + UI
+agentguard exec --task "..." -- <cmd>          # wrap process
+agentguard run <preset> --task "..."           # bash | sh | zsh | claude
+agentguard session list | replay | verify
 agentguard policy validate <file.yaml>
 agentguard policy save-rule --proposal proposal.json --scope org
-agentguard approve <request-id>                # resolve pending approval
-```
-
-## Web console
-
-| Route | Purpose |
-|-------|---------|
-| `/approvals` | Approve / deny / save-as-rule |
-| `/sessions` | Live and recent wrapped sessions |
-| `/blocked` | Filterable denied actions |
-| `/replay` | Immutable instruction → decision → tool timeline |
-| `/policies` | Default + learned packs; enable/disable |
-| `/credentials` | Credential scope / blast-radius view |
-| `/risk` | Counts by agent, repo, rule, decision |
-
-```bash
-cd web && npm install && npm run build   # optional; serve prefers web/dist when present
-cd web && npm run dev                    # Vite + API proxy to :8787
+agentguard approve <request-id>                # via running serve API
+agentguard approve <request-id> --deny
 ```
 
 ## Configuration
 
-Edit [`agentguard.yaml`](agentguard.yaml):
-
-```yaml
-data_dir: .agentguard
-policy_dir: policies
-api:
-  listen: 127.0.0.1:8787
-
-credentials:
-  aws_profiles:
-    - profile: prod-oncall
-      environment: production
-      scope_labels: [iam:write, rds:admin, s3:full]
-  postgres:
-    - conn_ref: production-db
-      host_pattern: "*.prod.example.com"
-      environment: production
-  http_tokens:
-    - ref: github-api
-      header_pattern: "bearer ghp_"
-      scope_labels: [github:repo, github:write]
-```
-
-Policies: [`policies/default/`](policies/default/) (shipped) and [`policies/learned/`](policies/learned/) (from interventions).
-
-## API surface
-
-| Method | Path | Purpose |
-|--------|------|---------|
-| `GET` | `/health` | Liveness |
-| `GET` | `/api/v1/sessions` | List sessions |
-| `GET` | `/api/v1/sessions/{id}/events` | Session replay events |
-| `GET` | `/api/v1/sessions/{id}/verify` | Verify hash chain |
-| `GET` | `/api/v1/events?decision=block` | Filtered audit events |
-| `POST` | `/api/v1/events/{id}/save-as-rule` | Learn rule from blocked event |
-| `GET/POST` | `/api/v1/approvals…` | List / approve / deny / save-as-rule |
-| `GET/PATCH` | `/api/v1/policies…` | List packs, enable/disable, rules |
-| `POST` | `/api/v1/policies/evaluate` | Evaluate a proposal |
-| `GET` | `/api/v1/risk/summary` | Risk aggregates |
-| `GET` | `/api/v1/credentials/scopes` | Credential blast-radius |
+See [`agentguard.yaml`](agentguard.yaml) for `data_dir`, `api.listen`, and credential blast-radius labels. Policies live in [`policies/default/`](policies/default/) and [`policies/learned/`](policies/learned/).
 
 ## Tests
 
 ```bash
 go test ./...
-go test ./test/demo/... -v      # end-to-end: exec + audit + save-as-rule
+go test ./test/demo/... -v
+cd web && npm run build && npm run build:pages
 ```
 
 ## Project layout
 
 ```text
-cmd/agentguard/          CLI entry
-internal/
-  intercept/             process wrap, shims, HTTP proxy
-  adapters/              shell, fs, http, postgres, aws classifiers
-  policy/                YAML engine + learned rules
-  intent/                task vs action heuristics
-  credentials/           blast-radius scope mapper
-  approval/              CLI/UI approval broker
-  audit/                 SQLite hash-chain store
-  api/                   control-plane HTTP + embedded UI
-  session/               session lifecycle
-policies/default/        built-in destructive pack
-policies/learned/        rules from interventions
-web/                     React console (Vite)
+cmd/agentguard/          CLI
+internal/                gateway, adapters, policy, intent, audit, api
+policies/                default + learned YAML
+web/                     Vite + React (landing, playground, console)
 scripts/demo.sh          category demo
-test/demo/               end-to-end tests
+test/demo/               end-to-end Go tests
 docs/PRODUCT.md          product vision
+.github/workflows/       GitHub Pages deploy
 ```
 
 ## Honest limitations (MVP)
 
-- Agents that **bypass** `agentguard exec` are out of band — not a kernel sandbox
-- Credential scope uses **configured labels** (not full live IAM simulation)
-- Intent checks are **heuristic** (no LLM as sole enforcer)
-- Local single-node control plane — not multi-tenant SaaS yet
+- Agents that bypass `agentguard exec` are ungated (not a kernel sandbox)
+- Credential scope uses configured labels (not full live IAM simulation)
+- Intent checks are heuristic; policy remains authoritative
+- GitHub Pages is documentation + playground only — **no remote enforcement**
 
-See [docs/PRODUCT.md](docs/PRODUCT.md) for positioning and roadmap context.
+See [docs/PRODUCT.md](docs/PRODUCT.md) for positioning.

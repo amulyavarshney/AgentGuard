@@ -20,19 +20,6 @@ type Registry struct {
 	AWS        Adapter
 }
 
-// StubAdapter returns an empty proposal; real classification comes in later phases.
-type StubAdapter struct {
-	ActionType string
-}
-
-// Classify implements Adapter with minimal placeholder behavior.
-func (s StubAdapter) Classify(_ context.Context, raw map[string]any) (model.ActionProposal, error) {
-	return model.ActionProposal{
-		ActionType: s.ActionType,
-		RawRequest: raw,
-	}, nil
-}
-
 // DefaultRegistry returns adapters for all gated action types.
 func DefaultRegistry(allowlist []string) Registry {
 	fs := NewFilesystemAdapter(allowlist)
